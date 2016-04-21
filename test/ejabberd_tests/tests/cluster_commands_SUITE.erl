@@ -33,23 +33,28 @@
 %%--------------------------------------------------------------------
 
 all() ->
-    [{group, clustered},
-        {group, ejabberdctl},
-        {group, clustering_two},
+    [
+%%        {group, clustered},
+%%        {group, ejabberdctl},
+%%        {group, clustering_two},
         {group, clustering_theree}].
 groups() ->
-    [{clustered, [], [one_to_one_message]},
-        {clustering_two, [],
-            [join_successful,
-            leave_successful,
-            join_unsuccessful,
-            leave_unsuccessful,
-            leave_but_no_cluster,
-            join_twice,
-            leave_twice]},
+    [
+%%        {clustered, [], [one_to_one_message]},
+%%        {clustering_two, [],
+%%            [join_successful,
+%%            leave_successful,
+%%            join_unsuccessful,
+%%            leave_unsuccessful,
+%%            leave_but_no_cluster,
+%%            join_twice,
+%%            leave_twice]},
         {clustering_theree, [shuffle],
-            [cluster_of_theree, leave_the_theree]},
-        {ejabberdctl, [], [set_master_test]}].
+            [cluster_of_theree, leave_the_theree,
+             remove_dead_from_cluster]}
+%%        ,
+%%        {ejabberdctl, [], [set_master_test]}
+    ].
 suite() ->
     require_all_nodes() ++
     escalus:suite().
@@ -138,6 +143,13 @@ end_per_testcase(cluster_of_theree, Config) ->
     Node3 = fed(),
     ok = rpc(Node2, mongoose_cluster, leave, [], Timeout),
     ok = rpc(Node3, mongoose_cluster, leave, [], Timeout),
+    escalus:end_per_testcase(cluster_of_theree, Config);
+
+end_per_testcase(remove_dead_from_cluster, Config) ->
+    Timeout = timer:seconds(60),
+    Node = mim2(),
+    start_node(Node, Config),
+    ok = rpc(Node, mongoose_cluster, leave, [], Timeout),
     escalus:end_per_testcase(cluster_of_theree, Config);
 
 end_per_testcase(CaseName, Config) when CaseName == join_successful
@@ -286,6 +298,23 @@ leave_the_theree(Config) ->
     ?eq(0, OpCode1),
     ?eq(0, OpCode2).
 
+remove_dead_from_cluster(Config) ->
+    % given
+    Timeout = timer:seconds(60),
+    Node1 = mim(),
+    Node2 = mim2(),
+    Node3 = fed(),
+    ok = rpc(Node2, mongoose_cluster, join, [Node1], Timeout),
+    ok = rpc(Node3, mongoose_cluster, join, [Node1], Timeout),
+    %% when
+    stop_node(Node2, Config),
+    {_, OpCode1} = ejabberdctl_helper:ejabberdctl("remove_from_cluster", [atom_to_list(Node2)], Config),
+    %% then
+    nodes_clustered(Node1, Node3, true),
+    nodes_clustered(Node1, Node2, false),
+    nodes_clustered(Node3, Node2, false),
+    ?eq(0, OpCode1).
+
 
 %% Helpers
 ejabberdctl_interactive(C, A, R, Config) ->
@@ -334,3 +363,8 @@ nodes_clustered(Node1, Node2, ShouldBe) ->
     [?assertEqual(ShouldBelong, lists:member(Element, List))
         || {Element, List, ShouldBelong} <- Pairs].
 
+start_node(Config, Node) ->
+    ejabberdctl_helper:ejabberdctl(Node, "start", [], Config).
+
+stop_node(Config, Node) ->
+    ejabberdctl_helper:ejabberdctl(Node, "stop", [], Config).
