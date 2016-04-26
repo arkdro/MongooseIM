@@ -258,7 +258,7 @@ clients_can_connect_with_advertised_ciphers(Config) ->
     ct:pal("Available cipher suites for : ~s", [CiphersStr]),
     ct:pal("Openssl version: ~s", [os:cmd("openssl version")]),
     ?assertEqual(["DHE-RSA-AES256-SHA"],
-                 ciphers_working_with_ssl_clients(Config1)).
+                 ciphers_working_with_ssl_clients(Config1, debug)).
 
 'clients_can_connect_with_DHE-RSA-AES128-SHA'(Config) ->
     ?assert(lists:member("DHE-RSA-AES128-SHA",
@@ -484,17 +484,28 @@ ciphers_available_in_os() ->
     [string:strip(C, both, $\n) || C <- string:tokens(CiphersStr, ":")].
 
 ciphers_working_with_ssl_clients(Config) ->
+    ciphers_wokring_with_ssl_clients(Config, undefined).
+
+ciphers_wokring_with_ssl_clients(Config, Debug) ->
     Port = c2s_port(Config),
     lists:filter(fun(Cipher) ->
-                         openssl_client_can_use_cipher(Cipher, Port)
+                         openssl_client_can_use_cipher(Cipher, Port, Debug)
                  end, ciphers_available_in_os()).
 
-openssl_client_can_use_cipher(Cipher, Port) ->
+openssl_client_can_use_cipher(Cipher, Port, Debug) ->
     PortStr = integer_to_list(Port),
     Cmd = "echo '' | openssl s_client -connect localhost:" ++ PortStr ++
         " -cipher " "\"" ++ Cipher ++ "\" 2>&1"
         " | grep 'Cipher is " ++ Cipher ++ "'",
-    [] =/= os:cmd(Cmd).
+    maybe_log(Debug, "cmd: ~s", [Cmd]),
+    R = os:cmd(Cmd),
+    maybe_log(Debug, "result: ~s", [R]),
+    [] =/= R.
+
+maybe_log(debug, Format, Args) ->
+    ct:pal(Format, Args);
+maybe_log(_, _, _) ->
+    ok.
 
 restore_ejabberd_node(Config) ->
     ejabberd_node_utils:restore_config_file(Config),

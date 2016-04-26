@@ -396,7 +396,12 @@ static ErlDrvSSizeT tls_drv_control(ErlDrvData handle,
 	        ciphers = buf + buflen + 1;
 	    }
 
-	    SSL_CTX_set_cipher_list(ctx, ciphers);
+	    printf("ciphers %s\n", ciphers);
+
+	    int result = SSL_CTX_set_cipher_list(ctx, ciphers);
+
+	    printf("result %d\n", result);
+
 	    if(SSLeay() > 0x1000005fl)
 	    {
 	        EC_KEY *ecdh = EC_KEY_new_by_curve_name(NID_X9_62_prime256v1);
